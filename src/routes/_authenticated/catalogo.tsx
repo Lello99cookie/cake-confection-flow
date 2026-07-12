@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +36,19 @@ import {
   createPanettone,
   deleteSpecialty,
   deletePanettone,
+  listCakeOptionsAdmin,
+  createCakeBase,
+  updateCakeBase,
+  deleteCakeBase,
+  createCakeFilling,
+  updateCakeFilling,
+  deleteCakeFilling,
+  createCakeSize,
+  updateCakeSize,
+  deleteCakeSize,
+  createCakeAddon,
+  updateCakeAddon,
+  deleteCakeAddon,
 } from "@/lib/catalog-admin.functions";
 import { uploadProductImage, ProductImageUploadError } from "@/lib/product-images";
 
@@ -73,6 +87,7 @@ function CatalogoPage() {
         <TabsList>
           <TabsTrigger value="specialita">Specialità</TabsTrigger>
           <TabsTrigger value="panettoni">Panettoni</TabsTrigger>
+          <TabsTrigger value="torta">Torta personalizzata</TabsTrigger>
         </TabsList>
         <TabsContent value="specialita" className="mt-6">
           <ProductGrid
@@ -93,6 +108,9 @@ function CatalogoPage() {
             creator={createPanettone}
             deleter={deletePanettone}
           />
+        </TabsContent>
+        <TabsContent value="torta" className="mt-6">
+          <CakeOptionsPanel />
         </TabsContent>
       </Tabs>
     </div>
@@ -551,6 +569,649 @@ function ProductCard({
           </AlertDialog>
         </div>
       </div>
+    </div>
+  );
+}
+
+type NameOption = { id: string; name: string; description: string | null; active: boolean };
+type SizeOption = {
+  id: string;
+  label: string;
+  servings: number;
+  price: number | null;
+  active: boolean;
+};
+type AddonOption = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  active: boolean;
+};
+
+function CakeOptionsPanel() {
+  const fetchOptions = useServerFn(listCakeOptionsAdmin);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["admin-cake-options"],
+    queryFn: () => fetchOptions(),
+  });
+
+  if (isLoading)
+    return (
+      <div className="rounded-xl bg-card p-8 text-center text-muted-foreground">Caricamento...</div>
+    );
+  if (error)
+    return (
+      <div className="rounded-xl bg-destructive/10 p-4 text-destructive">
+        {error instanceof Error ? error.message : "Errore"}
+      </div>
+    );
+  if (!data) return null;
+
+  return (
+    <Tabs defaultValue="basi">
+      <TabsList>
+        <TabsTrigger value="basi">Basi</TabsTrigger>
+        <TabsTrigger value="farciture">Farciture</TabsTrigger>
+        <TabsTrigger value="dimensioni">Dimensioni</TabsTrigger>
+        <TabsTrigger value="aggiunte">Aggiunte</TabsTrigger>
+      </TabsList>
+      <TabsContent value="basi" className="mt-4">
+        <NameOptionList
+          items={data.bases}
+          creator={createCakeBase}
+          updater={updateCakeBase}
+          deleter={deleteCakeBase}
+          namePlaceholder="Es. Pan di Spagna"
+          addLabel="Aggiungi base"
+        />
+      </TabsContent>
+      <TabsContent value="farciture" className="mt-4">
+        <NameOptionList
+          items={data.fillings}
+          creator={createCakeFilling}
+          updater={updateCakeFilling}
+          deleter={deleteCakeFilling}
+          namePlaceholder="Es. Crema chantilly"
+          addLabel="Aggiungi farcitura"
+        />
+      </TabsContent>
+      <TabsContent value="dimensioni" className="mt-4">
+        <SizeOptionList items={data.sizes} />
+      </TabsContent>
+      <TabsContent value="aggiunte" className="mt-4">
+        <AddonOptionList items={data.addons} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function invalidateCakeOptions(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ["admin-cake-options"] });
+  qc.invalidateQueries({ queryKey: ["cake-options"] });
+}
+
+function NameOptionList({
+  items,
+  creator,
+  updater,
+  deleter,
+  namePlaceholder,
+  addLabel,
+}: {
+  items: NameOption[];
+  creator: typeof createCakeBase;
+  updater: typeof updateCakeBase;
+  deleter: typeof deleteCakeBase;
+  namePlaceholder: string;
+  addLabel: string;
+}) {
+  const qc = useQueryClient();
+  const runCreate = useServerFn(creator);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      runCreate({ data: { name: name.trim(), description: description.trim() || null } }),
+    onSuccess: () => {
+      invalidateCakeOptions(qc);
+      toast.success("Aggiunta");
+      setName("");
+      setDescription("");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore salvataggio"),
+  });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-2 rounded-xl bg-card p-4 ring-1 ring-border">
+        <div className="min-w-[160px] flex-1">
+          <Label htmlFor="opt-name">Nome</Label>
+          <Input
+            id="opt-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={120}
+            placeholder={namePlaceholder}
+          />
+        </div>
+        <div className="min-w-[200px] flex-[2]">
+          <Label htmlFor="opt-desc">Descrizione (opzionale)</Label>
+          <Input
+            id="opt-desc"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={500}
+          />
+        </div>
+        <Button
+          type="button"
+          disabled={!name.trim() || createMutation.isPending}
+          onClick={() => createMutation.mutate()}
+        >
+          <Plus className="mr-1 h-4 w-4" /> {addLabel}
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <NameOptionRow key={item.id} item={item} updater={updater} deleter={deleter} />
+        ))}
+        {items.length === 0 && (
+          <p className="text-sm text-muted-foreground">Nessuna opzione. Aggiungine una.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NameOptionRow({
+  item,
+  updater,
+  deleter,
+}: {
+  item: NameOption;
+  updater: typeof updateCakeBase;
+  deleter: typeof deleteCakeBase;
+}) {
+  const qc = useQueryClient();
+  const runUpdate = useServerFn(updater);
+  const runDelete = useServerFn(deleter);
+  const [name, setName] = useState(item.name);
+  const [description, setDescription] = useState(item.description ?? "");
+  const [active, setActive] = useState(item.active);
+
+  const dirty =
+    name.trim() !== item.name || description !== (item.description ?? "") || active !== item.active;
+
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      runUpdate({
+        data: { id: item.id, name: name.trim(), description: description.trim() || null, active },
+      }),
+    onSuccess: () => {
+      invalidateCakeOptions(qc);
+      toast.success("Aggiornata");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore salvataggio"),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: () => runDelete({ data: { id: item.id } }),
+    onSuccess: () => {
+      invalidateCakeOptions(qc);
+      toast.success("Eliminata");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore eliminazione"),
+  });
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-xl bg-card p-3 ring-1 ring-border">
+      <div className="min-w-[160px] flex-1">
+        <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
+      </div>
+      <div className="min-w-[200px] flex-[2]">
+        <Input
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          maxLength={500}
+          placeholder="Descrizione"
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <Switch checked={active} onCheckedChange={setActive} />
+        <span className="text-xs text-muted-foreground">{active ? "Attiva" : "Nascosta"}</span>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        disabled={!dirty || updateMutation.isPending}
+        onClick={() => updateMutation.mutate()}
+      >
+        Salva
+      </Button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button type="button" size="icon" variant="outline" disabled={deleteMutation.isPending}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare "{item.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sparirà subito dal configuratore. L'operazione non è reversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteMutation.mutate()}>Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function SizeOptionList({ items }: { items: SizeOption[] }) {
+  const qc = useQueryClient();
+  const runCreate = useServerFn(createCakeSize);
+  const [label, setLabel] = useState("");
+  const [servings, setServings] = useState("");
+  const [price, setPrice] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: (v: { label: string; servings: number; price: number | null }) =>
+      runCreate({ data: v }),
+    onSuccess: () => {
+      invalidateCakeOptions(qc);
+      toast.success("Dimensione aggiunta");
+      setLabel("");
+      setServings("");
+      setPrice("");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore salvataggio"),
+  });
+
+  function handleCreate() {
+    const trimmedLabel = label.trim();
+    if (!trimmedLabel) {
+      toast.error("Il nome non può essere vuoto");
+      return;
+    }
+    const parsedServings = Number(servings);
+    if (!Number.isInteger(parsedServings) || parsedServings < 1) {
+      toast.error("Numero persone non valido");
+      return;
+    }
+    const parsedPrice = price.trim() === "" ? null : Number(price.replace(",", "."));
+    if (parsedPrice != null && (Number.isNaN(parsedPrice) || parsedPrice < 0)) {
+      toast.error("Prezzo non valido");
+      return;
+    }
+    createMutation.mutate({ label: trimmedLabel, servings: parsedServings, price: parsedPrice });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-2 rounded-xl bg-card p-4 ring-1 ring-border">
+        <div className="min-w-[140px] flex-1">
+          <Label htmlFor="size-label">Nome dimensione</Label>
+          <Input
+            id="size-label"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            maxLength={80}
+            placeholder="Es. Media"
+          />
+        </div>
+        <div className="w-28">
+          <Label htmlFor="size-servings">Persone</Label>
+          <Input
+            id="size-servings"
+            type="number"
+            min="1"
+            step="1"
+            value={servings}
+            onChange={(e) => setServings(e.target.value)}
+          />
+        </div>
+        <div className="w-32">
+          <Label htmlFor="size-price">Prezzo (€)</Label>
+          <Input
+            id="size-price"
+            type="number"
+            min="0"
+            step="0.01"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            placeholder="Es. 25.00"
+          />
+        </div>
+        <Button type="button" disabled={createMutation.isPending} onClick={handleCreate}>
+          <Plus className="mr-1 h-4 w-4" /> Aggiungi dimensione
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <SizeOptionRow key={item.id} item={item} />
+        ))}
+        {items.length === 0 && (
+          <p className="text-sm text-muted-foreground">Nessuna dimensione. Aggiungine una.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SizeOptionRow({ item }: { item: SizeOption }) {
+  const qc = useQueryClient();
+  const runUpdate = useServerFn(updateCakeSize);
+  const runDelete = useServerFn(deleteCakeSize);
+  const [label, setLabel] = useState(item.label);
+  const [servings, setServings] = useState(String(item.servings));
+  const [price, setPrice] = useState(item.price != null ? String(item.price) : "");
+  const [active, setActive] = useState(item.active);
+
+  const dirty =
+    label.trim() !== item.label ||
+    servings !== String(item.servings) ||
+    price !== (item.price != null ? String(item.price) : "") ||
+    active !== item.active;
+
+  const updateMutation = useMutation({
+    mutationFn: (v: { label: string; servings: number; price: number | null; active: boolean }) =>
+      runUpdate({ data: { id: item.id, ...v } }),
+    onSuccess: () => {
+      invalidateCakeOptions(qc);
+      toast.success("Aggiornata");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore salvataggio"),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: () => runDelete({ data: { id: item.id } }),
+    onSuccess: () => {
+      invalidateCakeOptions(qc);
+      toast.success("Eliminata");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore eliminazione"),
+  });
+
+  function handleSave() {
+    const trimmedLabel = label.trim();
+    if (!trimmedLabel) {
+      toast.error("Il nome non può essere vuoto");
+      return;
+    }
+    const parsedServings = Number(servings);
+    if (!Number.isInteger(parsedServings) || parsedServings < 1) {
+      toast.error("Numero persone non valido");
+      return;
+    }
+    const parsedPrice = price.trim() === "" ? null : Number(price.replace(",", "."));
+    if (parsedPrice != null && (Number.isNaN(parsedPrice) || parsedPrice < 0)) {
+      toast.error("Prezzo non valido");
+      return;
+    }
+    updateMutation.mutate({
+      label: trimmedLabel,
+      servings: parsedServings,
+      price: parsedPrice,
+      active,
+    });
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-xl bg-card p-3 ring-1 ring-border">
+      <div className="min-w-[140px] flex-1">
+        <Input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={80} />
+      </div>
+      <div className="w-24">
+        <Input
+          type="number"
+          min="1"
+          step="1"
+          value={servings}
+          onChange={(e) => setServings(e.target.value)}
+        />
+      </div>
+      <div className="w-28">
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          placeholder="Facoltativo"
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <Switch checked={active} onCheckedChange={setActive} />
+        <span className="text-xs text-muted-foreground">{active ? "Attiva" : "Nascosta"}</span>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        disabled={!dirty || updateMutation.isPending}
+        onClick={handleSave}
+      >
+        Salva
+      </Button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button type="button" size="icon" variant="outline" disabled={deleteMutation.isPending}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare "{item.label}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sparirà subito dal configuratore. L'operazione non è reversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteMutation.mutate()}>Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function AddonOptionList({ items }: { items: AddonOption[] }) {
+  const qc = useQueryClient();
+  const runCreate = useServerFn(createCakeAddon);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: (v: { name: string; description: string | null; price: number }) =>
+      runCreate({ data: v }),
+    onSuccess: () => {
+      invalidateCakeOptions(qc);
+      toast.success("Aggiunta aggiunta");
+      setName("");
+      setDescription("");
+      setPrice("");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore salvataggio"),
+  });
+
+  function handleCreate() {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      toast.error("Il nome non può essere vuoto");
+      return;
+    }
+    const parsedPrice = Number(price.replace(",", ".") || "0");
+    if (Number.isNaN(parsedPrice) || parsedPrice < 0) {
+      toast.error("Prezzo non valido");
+      return;
+    }
+    createMutation.mutate({
+      name: trimmedName,
+      description: description.trim() || null,
+      price: parsedPrice,
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-2 rounded-xl bg-card p-4 ring-1 ring-border">
+        <div className="min-w-[160px] flex-1">
+          <Label htmlFor="addon-name">Nome aggiunta</Label>
+          <Input
+            id="addon-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={120}
+            placeholder="Es. Doppia crema"
+          />
+        </div>
+        <div className="min-w-[180px] flex-[2]">
+          <Label htmlFor="addon-desc">Descrizione (opzionale)</Label>
+          <Input
+            id="addon-desc"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={500}
+          />
+        </div>
+        <div className="w-32">
+          <Label htmlFor="addon-price">Prezzo (€)</Label>
+          <Input
+            id="addon-price"
+            type="number"
+            min="0"
+            step="0.01"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            placeholder="Es. 5.00"
+          />
+        </div>
+        <Button type="button" disabled={createMutation.isPending} onClick={handleCreate}>
+          <Plus className="mr-1 h-4 w-4" /> Aggiungi
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <AddonOptionRow key={item.id} item={item} />
+        ))}
+        {items.length === 0 && (
+          <p className="text-sm text-muted-foreground">Nessuna aggiunta. Aggiungine una.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AddonOptionRow({ item }: { item: AddonOption }) {
+  const qc = useQueryClient();
+  const runUpdate = useServerFn(updateCakeAddon);
+  const runDelete = useServerFn(deleteCakeAddon);
+  const [name, setName] = useState(item.name);
+  const [description, setDescription] = useState(item.description ?? "");
+  const [price, setPrice] = useState(String(item.price));
+  const [active, setActive] = useState(item.active);
+
+  const dirty =
+    name.trim() !== item.name ||
+    description !== (item.description ?? "") ||
+    price !== String(item.price) ||
+    active !== item.active;
+
+  const updateMutation = useMutation({
+    mutationFn: (v: { name: string; description: string | null; price: number; active: boolean }) =>
+      runUpdate({ data: { id: item.id, ...v } }),
+    onSuccess: () => {
+      invalidateCakeOptions(qc);
+      toast.success("Aggiornata");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore salvataggio"),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: () => runDelete({ data: { id: item.id } }),
+    onSuccess: () => {
+      invalidateCakeOptions(qc);
+      toast.success("Eliminata");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore eliminazione"),
+  });
+
+  function handleSave() {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      toast.error("Il nome non può essere vuoto");
+      return;
+    }
+    const parsedPrice = Number(price.replace(",", "."));
+    if (Number.isNaN(parsedPrice) || parsedPrice < 0) {
+      toast.error("Prezzo non valido");
+      return;
+    }
+    updateMutation.mutate({
+      name: trimmedName,
+      description: description.trim() || null,
+      price: parsedPrice,
+      active,
+    });
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-xl bg-card p-3 ring-1 ring-border">
+      <div className="min-w-[160px] flex-1">
+        <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
+      </div>
+      <div className="min-w-[180px] flex-[2]">
+        <Input
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          maxLength={500}
+          placeholder="Descrizione"
+        />
+      </div>
+      <div className="w-28">
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <Switch checked={active} onCheckedChange={setActive} />
+        <span className="text-xs text-muted-foreground">{active ? "Attiva" : "Nascosta"}</span>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        disabled={!dirty || updateMutation.isPending}
+        onClick={handleSave}
+      >
+        Salva
+      </Button>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button type="button" size="icon" variant="outline" disabled={deleteMutation.isPending}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare "{item.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sparirà subito dal configuratore. L'operazione non è reversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteMutation.mutate()}>Elimina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

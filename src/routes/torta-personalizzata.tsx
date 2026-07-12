@@ -48,16 +48,27 @@ type WizardState = {
   soaking?: "alcolica" | "analcolica" | "latte";
   sizeLabel?: string;
   servings?: number;
+  addons: string[];
   phrase?: string;
   decorations?: string;
   name?: string;
   phone?: string;
+  email?: string;
   date?: string;
   time?: string;
   notes?: string;
+  website?: string;
 };
 
-const STEPS = ["Base", "Farcitura", "Bagna", "Dimensione", "Personalizzazione", "Ritiro"];
+const STEPS = [
+  "Base",
+  "Farcitura",
+  "Bagna",
+  "Dimensione",
+  "Aggiunte",
+  "Personalizzazione",
+  "Ritiro",
+];
 
 function CakeWizardPage() {
   const { data: options } = useSuspenseQuery(optionsQuery);
@@ -71,7 +82,7 @@ function CakeWizardPage() {
   const ordersOpen = orderingStatus?.torta_personalizzata_enabled ?? true;
 
   const [step, setStep] = useState(0);
-  const [state, setState] = useState<WizardState>({ time: "10:00" });
+  const [state, setState] = useState<WizardState>({ time: "10:00", addons: [] });
   const [submitting, setSubmitting] = useState(false);
 
   const canNext = useMemo(() => {
@@ -87,7 +98,15 @@ function CakeWizardPage() {
       case 4:
         return true;
       case 5:
-        return ordersOpen && !!state.name?.trim() && !!state.phone?.trim() && !!state.date;
+        return true;
+      case 6:
+        return (
+          ordersOpen &&
+          !!state.name?.trim() &&
+          !!state.phone?.trim() &&
+          !!state.email?.trim() &&
+          !!state.date
+        );
       default:
         return false;
     }
@@ -95,6 +114,13 @@ function CakeWizardPage() {
 
   function set<K extends keyof WizardState>(k: K, v: WizardState[K]) {
     setState((s) => ({ ...s, [k]: v }));
+  }
+
+  function toggleAddon(name: string) {
+    setState((s) => ({
+      ...s,
+      addons: s.addons.includes(name) ? s.addons.filter((a) => a !== name) : [...s.addons, name],
+    }));
   }
 
   async function handleSubmit() {
@@ -111,6 +137,7 @@ function CakeWizardPage() {
         servings: state.servings!,
         phrase: state.phrase?.trim() || undefined,
         decorations: state.decorations?.trim() || undefined,
+        addons: state.addons.length ? state.addons : undefined,
       };
       await submit({
         data: {
@@ -118,13 +145,16 @@ function CakeWizardPage() {
           pickup_at,
           customer_name: state.name!.trim(),
           customer_phone: state.phone!.trim(),
+          customer_email: state.email!.trim(),
           notes: state.notes?.trim() || undefined,
           cake_config: cake,
+          website: state.website,
         },
       });
       const msg = buildCakeMessage({
         name: state.name!.trim(),
         phone: state.phone!.trim(),
+        email: state.email!.trim(),
         pickup_at,
         cake,
         notes: state.notes?.trim() || undefined,
@@ -246,7 +276,10 @@ function CakeWizardPage() {
               options={options.sizes.map((s) => ({
                 value: s.label,
                 label: s.label,
-                description: `${s.servings} persone`,
+                description:
+                  s.price != null
+                    ? `${s.servings} persone — € ${s.price.toFixed(2).replace(".", ",")}`
+                    : `${s.servings} persone`,
                 extra: { servings: s.servings },
               }))}
               value={state.sizeLabel}
@@ -258,6 +291,49 @@ function CakeWizardPage() {
           )}
 
           {step === 4 && (
+            <div>
+              <h2 className="font-serif text-2xl text-primary">Aggiunte</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Opzionale: seleziona una o più aggiunte per la tua torta.
+              </p>
+              {options.addons.length === 0 ? (
+                <p className="mt-6 text-sm text-muted-foreground">
+                  Nessuna aggiunta disponibile al momento.
+                </p>
+              ) : (
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  {options.addons.map((a) => {
+                    const selected = state.addons.includes(a.name);
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => toggleAddon(a.name)}
+                        className={cn(
+                          "rounded-xl border p-4 text-left transition-all",
+                          selected
+                            ? "border-accent bg-accent/10 ring-2 ring-accent/40"
+                            : "border-border hover:border-accent/50 hover:bg-secondary/40",
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-primary">{a.name}</span>
+                          <span className="whitespace-nowrap text-sm font-semibold text-accent">
+                            + € {a.price.toFixed(2).replace(".", ",")}
+                          </span>
+                        </div>
+                        {a.description && (
+                          <div className="mt-1 text-sm text-muted-foreground">{a.description}</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {step === 5 && (
             <div className="space-y-5">
               <h2 className="font-serif text-2xl text-primary">Personalizzazione</h2>
               <div>
@@ -284,9 +360,21 @@ function CakeWizardPage() {
             </div>
           )}
 
-          {step === 5 && (
+          {step === 6 && (
             <div className="space-y-5">
               <h2 className="font-serif text-2xl text-primary">Dati per il ritiro</h2>
+              {/* Honeypot: invisibile per gli utenti reali, i bot che compilano tutto lo riempiono. */}
+              <div className="absolute left-[-9999px] top-auto h-0 w-0 overflow-hidden">
+                <Label htmlFor="website">Non compilare questo campo</Label>
+                <Input
+                  id="website"
+                  name="website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={state.website ?? ""}
+                  onChange={(e) => set("website", e.target.value)}
+                />
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <Label htmlFor="date">Data ritiro</Label>
@@ -331,6 +419,17 @@ function CakeWizardPage() {
                   />
                 </div>
                 <div className="md:col-span-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    required
+                    type="email"
+                    value={state.email ?? ""}
+                    onChange={(e) => set("email", e.target.value)}
+                    maxLength={160}
+                  />
+                </div>
+                <div className="md:col-span-2">
                   <Label htmlFor="notes">Note aggiuntive</Label>
                   <Textarea
                     id="notes"
@@ -360,6 +459,11 @@ function CakeWizardPage() {
                       {state.sizeLabel} ({state.servings} persone)
                     </span>
                   </li>
+                  {state.addons.length > 0 && (
+                    <li>
+                      Aggiunte: <span className="text-foreground">{state.addons.join(", ")}</span>
+                    </li>
+                  )}
                   {state.phrase && (
                     <li>
                       Frase: <span className="text-foreground">"{state.phrase}"</span>

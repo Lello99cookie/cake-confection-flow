@@ -58,18 +58,20 @@ export type CakeConfig = {
   servings: number;
   phrase?: string;
   decorations?: string;
+  addons?: string[];
 };
 
 export function buildStandardMessage(input: {
   name: string;
   phone: string;
+  email: string;
   pickup_at: string;
   items: StandardItem[];
   notes?: string;
 }): string {
   const lines = [
     "🍰 *Nuova Prenotazione — Dolci Standard*",
-    `Cliente: ${input.name} (${input.phone})`,
+    `Cliente: ${input.name} (${input.phone}, ${input.email})`,
     `Ritiro: ${formatDate(input.pickup_at)}`,
     "",
     "Ordine:",
@@ -82,6 +84,7 @@ export function buildStandardMessage(input: {
 export function buildCakeMessage(input: {
   name: string;
   phone: string;
+  email: string;
   pickup_at: string;
   cake: CakeConfig;
   notes?: string;
@@ -91,7 +94,7 @@ export function buildCakeMessage(input: {
   ];
   const lines = [
     "🎂 *Nuova Prenotazione — Torta Personalizzata*",
-    `Cliente: ${input.name} (${input.phone})`,
+    `Cliente: ${input.name} (${input.phone}, ${input.email})`,
     `Ritiro: ${formatDate(input.pickup_at)}`,
     "",
     `Base: ${input.cake.base}`,
@@ -99,6 +102,7 @@ export function buildCakeMessage(input: {
     `Bagna: ${soakingLabel}`,
     `Dimensione: ${input.cake.size} (${input.cake.servings} persone)`,
   ];
+  if (input.cake.addons?.length) lines.push(`Aggiunte: ${input.cake.addons.join(", ")}`);
   if (input.cake.phrase) lines.push(`Frase sulla torta: "${input.cake.phrase}"`);
   if (input.cake.decorations) lines.push(`Decorazioni: ${input.cake.decorations}`);
   if (input.notes) lines.push("", `Note: ${input.notes}`);
@@ -108,13 +112,14 @@ export function buildCakeMessage(input: {
 export function buildPanettoneMessage(input: {
   name: string;
   phone: string;
+  email: string;
   pickup_at: string;
   items: StandardItem[];
   notes?: string;
 }): string {
   const lines = [
     "🎄 *Nuova Prenotazione — Panettoni*",
-    `Cliente: ${input.name} (${input.phone})`,
+    `Cliente: ${input.name} (${input.phone}, ${input.email})`,
     `Ritiro: ${formatDate(input.pickup_at)}`,
     "",
     "Panettoni:",

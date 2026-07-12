@@ -1,0 +1,178 @@
+diff --git a/src/routes/__root.tsx b/src/routes/__root.tsx
+index de09d7b..1699f4e 100644
+--- a/src/routes/__root.tsx
++++ b/src/routes/__root.tsx
+@@ -90,11 +90,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
+         content: "Pasticceria artigianale a Napoli: sfogliatelle, babà, pastiere, torte personalizzate e panettoni. Prenota online.",
+       },
+       { property: "og:type", content: "website" },
+-      { name: "twitter:card", content: "summary_large_image" },
++      { name: "twitter:card", content: "summary" },
+       { name: "twitter:title", content: "Pasticceria — Dolci artigianali napoletani" },
+       { name: "twitter:description", content: "Pasticceria artigianale a Napoli: sfogliatelle, babà, pastiere, torte personalizzate e panettoni. Prenota online." },
+-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3bb9cec7-730a-4383-a9e5-f485054e8e01/id-preview-1d9d92d7--1ae48240-f1a9-4316-9813-e728b8f3fba7.lovable.app-1783856457919.png" },
+-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3bb9cec7-730a-4383-a9e5-f485054e8e01/id-preview-1d9d92d7--1ae48240-f1a9-4316-9813-e728b8f3fba7.lovable.app-1783856457919.png" },
+     ],
+     links: [
+       { rel: "stylesheet", href: appCss },
+diff --git a/src/routes/_authenticated/dashboard.tsx b/src/routes/_authenticated/dashboard.tsx
+index 478fe4f..796466e 100644
+--- a/src/routes/_authenticated/dashboard.tsx
++++ b/src/routes/_authenticated/dashboard.tsx
+@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+ import { useServerFn } from "@tanstack/react-start";
+ import { useMemo, useState } from "react";
+ import { toast } from "sonner";
+-import { Search, Clock, Package, Cake, Gift } from "lucide-react";
++import { Search, Clock, Package, Cake, Gift, AlertTriangle, CheckCircle2, Inbox, Loader2 } from "lucide-react";
+ import { Input } from "@/components/ui/input";
+ import { Button } from "@/components/ui/button";
+ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+@@ -43,6 +43,21 @@ function DashboardPage() {
+   const [status, setStatus] = useState<string>("all");
+   const [search, setSearch] = useState("");
+ 
++  const stats = useMemo(() => {
++    const now = Date.now();
++    let daPreparare = 0, urgenti = 0, inRitardo = 0, pronte = 0;
++    for (const b of data ?? []) {
++      const hoursToPickup = (new Date(b.pickup_at).getTime() - now) / 36e5;
++      if (b.status === "da_preparare") {
++        daPreparare++;
++        if (hoursToPickup < 24 && hoursToPickup > 0) urgenti++;
++        if (hoursToPickup < 0) inRitardo++;
++      }
++      if (b.status === "pronto") pronte++;
++    }
++    return { daPreparare, urgenti, inRitardo, pronte };
++  }, [data]);
++
+   const mutation = useMutation({
+     mutationFn: (v: { id: string; status: "da_preparare" | "pronto" | "ritirato" | "annullato" }) =>
+       updateStatus({ data: v }),
+@@ -75,6 +90,13 @@ function DashboardPage() {
+         </p>
+       </div>
+ 
++      <div className="mb-6 grid gap-3 grid-cols-2 lg:grid-cols-4">
++        <StatCard icon={Package} label="Da preparare" value={stats.daPreparare} />
++        <StatCard icon={AlertTriangle} label="Urgenti (<24h)" value={stats.urgenti} tone="accent" />
++        <StatCard icon={Clock} label="In ritardo" value={stats.inRitardo} tone="destructive" />
++        <StatCard icon={CheckCircle2} label="Pronte" value={stats.pronte} tone="positive" />
++      </div>
++
+       <div className="mb-6 grid gap-3 md:grid-cols-[1fr_180px_180px]">
+         <div className="relative">
+           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+@@ -101,8 +123,16 @@ function DashboardPage() {
+         </Select>
+       </div>
+ 
+-      {isLoading && <div className="rounded-xl bg-card p-8 text-center text-muted-foreground">Caricamento...</div>}
+-      {error && <div className="rounded-xl bg-destructive/10 p-4 text-destructive">{error instanceof Error ? error.message : "Errore"}</div>}
++      {isLoading && (
++        <div className="flex items-center justify-center gap-2 rounded-xl bg-card p-8 text-center text-muted-foreground ring-1 ring-border">
++          <Loader2 className="h-4 w-4 animate-spin" /> Caricamento...
++        </div>
++      )}
++      {error && (
++        <div className="flex items-center gap-2 rounded-xl bg-destructive/10 p-4 text-destructive ring-1 ring-destructive/30">
++          <AlertTriangle className="h-4 w-4 shrink-0" /> {error instanceof Error ? error.message : "Errore"}
++        </div>
++      )}
+ 
+       <div className="space-y-3">
+         {filtered.map((b) => {
+@@ -155,7 +185,8 @@ function DashboardPage() {
+           );
+         })}
+         {!isLoading && filtered.length === 0 && (
+-          <div className="rounded-xl bg-card p-12 text-center text-muted-foreground">
++          <div className="flex flex-col items-center gap-2 rounded-xl bg-card p-12 text-center text-muted-foreground ring-1 ring-border">
++            <Inbox className="h-8 w-8 text-muted-foreground/60" />
+             Nessuna prenotazione con questi filtri.
+           </div>
+         )}
+@@ -165,11 +196,41 @@ function DashboardPage() {
+ }
+ 
+ function StatusBadge({ status }: { status: string }) {
++  if (status === "annullato") return <Badge variant="destructive">{STATUS_LABEL[status]}</Badge>;
+   const map: Record<string, string> = {
+-    da_preparare: "bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-100",
+-    pronto: "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100",
+-    ritirato: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+-    annullato: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-100",
++    da_preparare: "border-transparent bg-secondary text-secondary-foreground",
++    pronto: "border-transparent bg-accent/15 text-accent",
++    ritirato: "border-transparent bg-muted text-muted-foreground",
+   };
+-  return <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", map[status])}>{STATUS_LABEL[status]}</span>;
++  return <Badge variant="outline" className={map[status]}>{STATUS_LABEL[status]}</Badge>;
++}
++
++function StatCard({
++  icon: Icon,
++  label,
++  value,
++  tone = "default",
++}: {
++  icon: typeof Package;
++  label: string;
++  value: number;
++  tone?: "default" | "accent" | "destructive" | "positive";
++}) {
++  const toneClass = {
++    default: "bg-secondary text-secondary-foreground",
++    accent: "bg-accent/15 text-accent",
++    destructive: "bg-destructive/10 text-destructive",
++    positive: "bg-primary/10 text-primary",
++  }[tone];
++  return (
++    <div className="flex items-center gap-3 rounded-2xl bg-card p-4 ring-1 ring-border shadow-sm">
++      <div className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full", toneClass)}>
++        <Icon className="h-5 w-5" />
++      </div>
++      <div className="min-w-0">
++        <div className="font-serif text-2xl leading-none text-primary">{value}</div>
++        <div className="mt-1 truncate text-xs text-muted-foreground">{label}</div>
++      </div>
++    </div>
++  );
+ }
+diff --git a/src/routes/_authenticated/prenotazioni.$id.tsx b/src/routes/_authenticated/prenotazioni.$id.tsx
+index 7cb15f1..aa53eee 100644
+--- a/src/routes/_authenticated/prenotazioni.$id.tsx
++++ b/src/routes/_authenticated/prenotazioni.$id.tsx
+@@ -1,7 +1,7 @@
+ import { createFileRoute, Link } from "@tanstack/react-router";
+ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+ import { useServerFn } from "@tanstack/react-start";
+-import { ArrowLeft, Phone } from "lucide-react";
++import { ArrowLeft, Phone, Loader2, AlertTriangle } from "lucide-react";
+ import { toast } from "sonner";
+ import { Button } from "@/components/ui/button";
+ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+@@ -53,8 +53,20 @@ function BookingDetailPage() {
+     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+   });
+ 
+-  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
+-  if (error || !b) return <div className="p-8 text-center text-destructive">{error instanceof Error ? error.message : "Non trovata"}</div>;
++  if (isLoading) {
++    return (
++      <div className="mx-auto flex max-w-3xl items-center justify-center gap-2 px-4 py-16 text-muted-foreground">
++        <Loader2 className="h-4 w-4 animate-spin" /> Caricamento...
++      </div>
++    );
++  }
++  if (error || !b) {
++    return (
++      <div className="mx-auto flex max-w-3xl items-center justify-center gap-2 px-4 py-16 text-destructive">
++        <AlertTriangle className="h-4 w-4" /> {error instanceof Error ? error.message : "Prenotazione non trovata"}
++      </div>
++    );
++  }
+ 
+   const pickup = new Date(b.pickup_at);
+   const items = Array.isArray(b.items) ? (b.items as { name: string; quantity: number }[]) : [];

@@ -49,7 +49,7 @@ export const getOrderingStatus = createServerFn({ method: "GET" }).handler(async
 
 export const getCakeOptions = createServerFn({ method: "GET" }).handler(async () => {
   const supabase = publicClient();
-  const [bases, fillings, sizes] = await Promise.all([
+  const [bases, fillings, sizes, addons] = await Promise.all([
     supabase
       .from("cake_bases")
       .select("id,name,description")
@@ -60,10 +60,25 @@ export const getCakeOptions = createServerFn({ method: "GET" }).handler(async ()
       .select("id,name,description")
       .eq("active", true)
       .order("sort_order"),
-    supabase.from("cake_sizes").select("id,label,servings").eq("active", true).order("sort_order"),
+    supabase
+      .from("cake_sizes")
+      .select("id,label,servings,price")
+      .eq("active", true)
+      .order("sort_order"),
+    supabase
+      .from("cake_addons")
+      .select("id,name,description,price")
+      .eq("active", true)
+      .order("sort_order"),
   ]);
   if (bases.error) throw new Error(bases.error.message);
   if (fillings.error) throw new Error(fillings.error.message);
   if (sizes.error) throw new Error(sizes.error.message);
-  return { bases: bases.data ?? [], fillings: fillings.data ?? [], sizes: sizes.data ?? [] };
+  if (addons.error) throw new Error(addons.error.message);
+  return {
+    bases: bases.data ?? [],
+    fillings: fillings.data ?? [],
+    sizes: sizes.data ?? [],
+    addons: addons.data ?? [],
+  };
 });

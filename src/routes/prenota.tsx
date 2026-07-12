@@ -74,14 +74,17 @@ function BookingStandardPage() {
   const [addItem, setAddItem] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [website, setWebsite] = useState("");
   const [pickupDate, setPickupDate] = useState("");
   const [pickupTime, setPickupTime] = useState("10:00");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit = useMemo(
-    () => ordersOpen && cart.length > 0 && name.trim() && phone.trim() && pickupDate,
-    [ordersOpen, cart, name, phone, pickupDate],
+    () =>
+      ordersOpen && cart.length > 0 && name.trim() && phone.trim() && email.trim() && pickupDate,
+    [ordersOpen, cart, name, phone, email, pickupDate],
   );
 
   function addToCart(itemName: string) {
@@ -115,13 +118,16 @@ function BookingStandardPage() {
           pickup_at,
           customer_name: name.trim(),
           customer_phone: phone.trim(),
+          customer_email: email.trim(),
           notes: notes.trim() || undefined,
           items: cart,
+          website,
         },
       });
       const msg = buildStandardMessage({
         name: name.trim(),
         phone: phone.trim(),
+        email: email.trim(),
         pickup_at,
         items: cart,
         notes: notes.trim() || undefined,
@@ -230,6 +236,18 @@ function BookingStandardPage() {
           {/* Data ritiro + contatti */}
           <div className="rounded-2xl bg-card p-6 ring-1 ring-border">
             <h2 className="font-serif text-2xl text-primary">Ritiro e contatti</h2>
+            {/* Honeypot: invisibile per gli utenti reali, i bot che compilano tutto lo riempiono. */}
+            <div className="absolute left-[-9999px] top-auto h-0 w-0 overflow-hidden">
+              <Label htmlFor="website">Non compilare questo campo</Label>
+              <Input
+                id="website"
+                name="website"
+                tabIndex={-1}
+                autoComplete="off"
+                value={website}
+                onChange={(e) => setWebsite(e.target.value)}
+              />
+            </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>
                 <Label htmlFor="date">Data ritiro</Label>
@@ -271,6 +289,17 @@ function BookingStandardPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   maxLength={30}
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  required
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  maxLength={160}
                 />
               </div>
               <div className="md:col-span-2">

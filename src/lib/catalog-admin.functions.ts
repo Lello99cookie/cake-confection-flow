@@ -221,3 +221,220 @@ export const updateOrderingStatus = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// --- Cake wizard options (basi, farciture, dimensioni, aggiunte) ---
+
+export const listCakeOptionsAdmin = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context);
+    const [bases, fillings, sizes, addons] = await Promise.all([
+      context.supabase
+        .from("cake_bases")
+        .select("id,name,description,active,sort_order")
+        .order("sort_order"),
+      context.supabase
+        .from("cake_fillings")
+        .select("id,name,description,active,sort_order")
+        .order("sort_order"),
+      context.supabase
+        .from("cake_sizes")
+        .select("id,label,servings,price,active,sort_order")
+        .order("sort_order"),
+      context.supabase
+        .from("cake_addons")
+        .select("id,name,description,price,active,sort_order")
+        .order("sort_order"),
+    ]);
+    if (bases.error) throw new Error(bases.error.message);
+    if (fillings.error) throw new Error(fillings.error.message);
+    if (sizes.error) throw new Error(sizes.error.message);
+    if (addons.error) throw new Error(addons.error.message);
+    return {
+      bases: bases.data ?? [],
+      fillings: fillings.data ?? [],
+      sizes: sizes.data ?? [],
+      addons: addons.data ?? [],
+    };
+  });
+
+async function nextCakeOptionSortOrder(
+  supabase: AdminSupabaseClient,
+  table: "cake_bases" | "cake_fillings" | "cake_sizes" | "cake_addons",
+): Promise<number> {
+  const { data } = await supabase
+    .from(table)
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data?.sort_order ?? 0) + 10;
+}
+
+const nameOptionCreateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(500).nullable(),
+});
+const nameOptionUpdateSchema = nameOptionCreateSchema.extend({
+  id: z.string().uuid(),
+  active: z.boolean(),
+});
+const cakeOptionDeleteSchema = z.object({ id: z.string().uuid() });
+
+function makeNameOptionCrud(table: "cake_bases" | "cake_fillings") {
+  const create = createServerFn({ method: "POST" })
+    .middleware([requireSupabaseAuth])
+    .inputValidator((data: unknown) => nameOptionCreateSchema.parse(data))
+    .handler(async ({ data, context }) => {
+      await requireAdmin(context);
+      const sort_order = await nextCakeOptionSortOrder(context.supabase, table);
+      const { data: row, error } = await context.supabase
+        .from(table)
+        .insert({ name: data.name, description: data.description, sort_order })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      return { id: row.id };
+    });
+
+  const update = createServerFn({ method: "POST" })
+    .middleware([requireSupabaseAuth])
+    .inputValidator((data: unknown) => nameOptionUpdateSchema.parse(data))
+    .handler(async ({ data, context }) => {
+      await requireAdmin(context);
+      const { error } = await context.supabase
+        .from(table)
+        .update({ name: data.name, description: data.description, active: data.active })
+        .eq("id", data.id);
+      if (error) throw new Error(error.message);
+      return { ok: true };
+    });
+
+  const remove = createServerFn({ method: "POST" })
+    .middleware([requireSupabaseAuth])
+    .inputValidator((data: unknown) => cakeOptionDeleteSchema.parse(data))
+    .handler(async ({ data, context }) => {
+      await requireAdmin(context);
+      const { error } = await context.supabase.from(table).delete().eq("id", data.id);
+      if (error) throw new Error(error.message);
+      return { ok: true };
+    });
+
+  return { create, update, remove };
+}
+
+const cakeBaseCrud = makeNameOptionCrud("cake_bases");
+export const createCakeBase = cakeBaseCrud.create;
+export const updateCakeBase = cakeBaseCrud.update;
+export const deleteCakeBase = cakeBaseCrud.remove;
+
+const cakeFillingCrud = makeNameOptionCrud("cake_fillings");
+export const createCakeFilling = cakeFillingCrud.create;
+export const updateCakeFilling = cakeFillingCrud.update;
+export const deleteCakeFilling = cakeFillingCrud.remove;
+
+const cakeSizeCreateSchema = z.object({
+  label: z.string().trim().min(1).max(80),
+  servings: z.number().int().min(1).max(200),
+  price: z.number().nonnegative().max(9999).nullable(),
+});
+const cakeSizeUpdateSchema = cakeSizeCreateSchema.extend({
+  id: z.string().uuid(),
+  active: z.boolean(),
+});
+
+export const createCakeSize = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => cakeSizeCreateSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context);
+    const sort_order = await nextCakeOptionSortOrder(context.supabase, "cake_sizes");
+    const { data: row, error } = await context.supabase
+      .from("cake_sizes")
+      .insert({ label: data.label, servings: data.servings, price: data.price, sort_order })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { id: row.id };
+  });
+
+export const updateCakeSize = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => cakeSizeUpdateSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context);
+    const { error } = await context.supabase
+      .from("cake_sizes")
+      .update({
+        label: data.label,
+        servings: data.servings,
+        price: data.price,
+        active: data.active,
+      })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteCakeSize = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => cakeOptionDeleteSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context);
+    const { error } = await context.supabase.from("cake_sizes").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+const cakeAddonCreateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(500).nullable(),
+  price: z.number().nonnegative().max(9999),
+});
+const cakeAddonUpdateSchema = cakeAddonCreateSchema.extend({
+  id: z.string().uuid(),
+  active: z.boolean(),
+});
+
+export const createCakeAddon = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => cakeAddonCreateSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context);
+    const sort_order = await nextCakeOptionSortOrder(context.supabase, "cake_addons");
+    const { data: row, error } = await context.supabase
+      .from("cake_addons")
+      .insert({ name: data.name, description: data.description, price: data.price, sort_order })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { id: row.id };
+  });
+
+export const updateCakeAddon = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => cakeAddonUpdateSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context);
+    const { error } = await context.supabase
+      .from("cake_addons")
+      .update({
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        active: data.active,
+      })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteCakeAddon = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => cakeOptionDeleteSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context);
+    const { error } = await context.supabase.from("cake_addons").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

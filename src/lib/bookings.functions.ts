@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -26,6 +27,7 @@ const cakeConfigSchema = z.object({
   servings: z.number().int().min(2).max(200),
   phrase: z.string().max(120).optional(),
   decorations: z.string().max(500).optional(),
+  addons: z.array(z.string().min(1).max(80)).max(20).optional(),
 });
 
 const createBookingSchema = z.object({
@@ -33,14 +35,34 @@ const createBookingSchema = z.object({
   pickup_at: z.string().min(10),
   customer_name: z.string().trim().min(1).max(120),
   customer_phone: z.string().trim().min(6).max(30),
+  customer_email: z.string().trim().email().max(160),
   notes: z.string().max(1000).optional(),
   items: z.array(standardItemSchema).optional(),
   cake_config: cakeConfigSchema.optional(),
+  // Honeypot: real users never see or fill this field. Bots that auto-fill every
+  // input do, so a non-empty value marks the submission as spam.
+  website: z.string().max(200).optional(),
 });
+
+const MAX_BOOKINGS_PER_WINDOW = 3;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+
+function getClientIp(): string | null {
+  const headers = getRequest()?.headers;
+  if (!headers) return null;
+  const forwardedFor = headers.get("x-forwarded-for");
+  if (forwardedFor) return forwardedFor.split(",")[0]!.trim();
+  return headers.get("x-real-ip");
+}
 
 export const createBooking = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => createBookingSchema.parse(data))
   .handler(async ({ data }) => {
+    // Honeypot tripped: pretend it worked so the bot doesn't adapt, but never write.
+    if (data.website && data.website.trim() !== "") {
+      return { id: randomUUID() };
+    }
+
     const supabase = publicClient();
 
     const { data: status, error: statusError } = await supabase
@@ -60,6 +82,25 @@ export const createBooking = createServerFn({ method: "POST" })
       );
     }
 
+    const clientIp = getClientIp();
+    const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString();
+    const identityFilters = [
+      `customer_phone.eq.${data.customer_phone}`,
+      `customer_email.eq.${data.customer_email}`,
+      ...(clientIp ? [`client_ip.eq.${clientIp}`] : []),
+    ];
+    const { count: recentCount, error: rateError } = await supabase
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", since)
+      .or(identityFilters.join(","));
+    if (rateError) throw new Error(rateError.message);
+    if ((recentCount ?? 0) >= MAX_BOOKINGS_PER_WINDOW) {
+      throw new Error(
+        "Hai già inviato diverse richieste di recente. Ti contatteremo a breve, oppure riprova più tardi.",
+      );
+    }
+
     const id = randomUUID();
     const { error } = await supabase.from("bookings").insert({
       id,
@@ -67,6 +108,8 @@ export const createBooking = createServerFn({ method: "POST" })
       pickup_at: data.pickup_at,
       customer_name: data.customer_name,
       customer_phone: data.customer_phone,
+      customer_email: data.customer_email,
+      client_ip: clientIp,
       notes: data.notes ?? null,
       items: data.items ?? null,
       cake_config: data.cake_config ?? null,
