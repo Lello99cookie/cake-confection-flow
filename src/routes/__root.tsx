@@ -90,11 +90,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "Pasticceria artigianale a Napoli: sfogliatelle, babà, pastiere, torte personalizzate e panettoni. Prenota online.",
       },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: "Pasticceria — Dolci artigianali napoletani" },
       { name: "twitter:description", content: "Pasticceria artigianale a Napoli: sfogliatelle, babà, pastiere, torte personalizzate e panettoni. Prenota online." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3bb9cec7-730a-4383-a9e5-f485054e8e01/id-preview-1d9d92d7--1ae48240-f1a9-4316-9813-e728b8f3fba7.lovable.app-1783856457919.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3bb9cec7-730a-4383-a9e5-f485054e8e01/id-preview-1d9d92d7--1ae48240-f1a9-4316-9813-e728b8f3fba7.lovable.app-1783856457919.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

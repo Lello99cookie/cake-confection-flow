@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Phone } from "lucide-react";
+import { ArrowLeft, Phone, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -53,8 +53,20 @@ function BookingDetailPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
-  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
-  if (error || !b) return <div className="p-8 text-center text-destructive">{error instanceof Error ? error.message : "Non trovata"}</div>;
+  if (isLoading) {
+    return (
+      <div className="mx-auto flex max-w-3xl items-center justify-center gap-2 px-4 py-16 text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Caricamento...
+      </div>
+    );
+  }
+  if (error || !b) {
+    return (
+      <div className="mx-auto flex max-w-3xl items-center justify-center gap-2 px-4 py-16 text-destructive">
+        <AlertTriangle className="h-4 w-4" /> {error instanceof Error ? error.message : "Prenotazione non trovata"}
+      </div>
+    );
+  }
 
   const pickup = new Date(b.pickup_at);
   const items = Array.isArray(b.items) ? (b.items as { name: string; quantity: number }[]) : [];
