@@ -6,11 +6,9 @@ import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 function publicClient() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { storage: undefined, persistSession: false, autoRefreshToken: false } },
-  );
+  return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+  });
 }
 
 const standardItemSchema = z.object({
@@ -42,6 +40,24 @@ export const createBooking = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => createBookingSchema.parse(data))
   .handler(async ({ data }) => {
     const supabase = publicClient();
+
+    const { data: status, error: statusError } = await supabase
+      .from("ordering_status")
+      .select("standard_enabled,torta_personalizzata_enabled,panettone_enabled")
+      .eq("id", true)
+      .maybeSingle();
+    if (statusError) throw new Error(statusError.message);
+    const enabledByType: Record<typeof data.type, boolean> = {
+      standard: status?.standard_enabled ?? true,
+      torta_personalizzata: status?.torta_personalizzata_enabled ?? true,
+      panettone: status?.panettone_enabled ?? true,
+    };
+    if (!enabledByType[data.type]) {
+      throw new Error(
+        "Al momento non accettiamo nuove prenotazioni per questa categoria. Riprova più tardi.",
+      );
+    }
+
     const id = randomUUID();
     const { error } = await supabase.from("bookings").insert({
       id,

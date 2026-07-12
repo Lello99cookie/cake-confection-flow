@@ -1,18 +1,29 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Search, Clock, Package, Cake, Gift } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { listBookings, updateBookingStatus } from "@/lib/bookings.functions";
+import { getOrderingStatusAdmin, updateOrderingStatus } from "@/lib/catalog-admin.functions";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard Prenotazioni" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({
+    meta: [{ title: "Dashboard Prenotazioni" }, { name: "robots", content: "noindex" }],
+  }),
   component: DashboardPage,
 });
 
@@ -60,7 +71,8 @@ function DashboardPage() {
       if (status !== "all" && b.status !== status) return false;
       if (search) {
         const s = search.toLowerCase();
-        if (!b.customer_name.toLowerCase().includes(s) && !b.customer_phone.includes(s)) return false;
+        if (!b.customer_name.toLowerCase().includes(s) && !b.customer_phone.includes(s))
+          return false;
       }
       return true;
     });
@@ -75,13 +87,22 @@ function DashboardPage() {
         </p>
       </div>
 
+      <OrderingStatusCard />
+
       <div className="mb-6 grid gap-3 md:grid-cols-[1fr_180px_180px]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Cerca per nome o telefono" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input
+            className="pl-9"
+            placeholder="Cerca per nome o telefono"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
         <Select value={type} onValueChange={setType}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i tipi</SelectItem>
             <SelectItem value="torta_personalizzata">Torte personalizzate</SelectItem>
@@ -90,7 +111,9 @@ function DashboardPage() {
           </SelectContent>
         </Select>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti gli stati</SelectItem>
             <SelectItem value="da_preparare">Da preparare</SelectItem>
@@ -101,8 +124,16 @@ function DashboardPage() {
         </Select>
       </div>
 
-      {isLoading && <div className="rounded-xl bg-card p-8 text-center text-muted-foreground">Caricamento...</div>}
-      {error && <div className="rounded-xl bg-destructive/10 p-4 text-destructive">{error instanceof Error ? error.message : "Errore"}</div>}
+      {isLoading && (
+        <div className="rounded-xl bg-card p-8 text-center text-muted-foreground">
+          Caricamento...
+        </div>
+      )}
+      {error && (
+        <div className="rounded-xl bg-destructive/10 p-4 text-destructive">
+          {error instanceof Error ? error.message : "Errore"}
+        </div>
+      )}
 
       <div className="space-y-3">
         {filtered.map((b) => {
@@ -115,23 +146,42 @@ function DashboardPage() {
           const overdue = hoursToPickup < 0 && b.status !== "ritirato" && b.status !== "annullato";
 
           return (
-            <div key={b.id} className={cn(
-              "rounded-xl bg-card p-4 ring-1 shadow-sm transition-colors",
-              overdue ? "ring-destructive/40 bg-destructive/5" : urgent ? "ring-accent bg-accent/5" : "ring-border",
-            )}>
+            <div
+              key={b.id}
+              className={cn(
+                "rounded-xl bg-card p-4 ring-1 shadow-sm transition-colors",
+                overdue
+                  ? "ring-destructive/40 bg-destructive/5"
+                  : urgent
+                    ? "ring-accent bg-accent/5"
+                    : "ring-border",
+              )}
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <Icon className="h-4 w-4 text-accent" />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{meta.label}</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {meta.label}
+                    </span>
                     <StatusBadge status={b.status} />
-                    {urgent && <Badge variant="outline" className="border-accent text-accent">Urgente</Badge>}
+                    {urgent && (
+                      <Badge variant="outline" className="border-accent text-accent">
+                        Urgente
+                      </Badge>
+                    )}
                     {overdue && <Badge variant="destructive">In ritardo</Badge>}
                   </div>
                   <div className="mt-2 font-serif text-lg text-primary">{b.customer_name}</div>
                   <div className="text-sm text-muted-foreground">
                     {b.customer_phone} · <Clock className="mr-1 inline h-3 w-3" />
-                    {pickup.toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    {pickup.toLocaleString("it-IT", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -139,15 +189,21 @@ function DashboardPage() {
                     value={b.status}
                     onValueChange={(v) => mutation.mutate({ id: b.id, status: v as never })}
                   >
-                    <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {Object.entries(STATUS_LABEL).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                        <SelectItem key={k} value={k}>
+                          {v}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <Button asChild variant="outline" size="sm">
-                    <Link to="/prenotazioni/$id" params={{ id: b.id }}>Dettaglio</Link>
+                    <Link to="/prenotazioni/$id" params={{ id: b.id }}>
+                      Dettaglio
+                    </Link>
                   </Button>
                 </div>
               </div>
@@ -164,6 +220,76 @@ function DashboardPage() {
   );
 }
 
+const ORDERING_TOGGLES: {
+  key: "standard_enabled" | "torta_personalizzata_enabled" | "panettone_enabled";
+  label: string;
+}[] = [
+  { key: "standard_enabled", label: "Dolci standard / vetrina" },
+  { key: "torta_personalizzata_enabled", label: "Torte personalizzate" },
+  { key: "panettone_enabled", label: "Panettoni" },
+];
+
+function OrderingStatusCard() {
+  const fetchStatus = useServerFn(getOrderingStatusAdmin);
+  const runUpdate = useServerFn(updateOrderingStatus);
+  const qc = useQueryClient();
+
+  const { data } = useQuery({
+    queryKey: ["ordering-status-admin"],
+    queryFn: () => fetchStatus(),
+  });
+
+  const [local, setLocal] = useState({
+    standard_enabled: true,
+    torta_personalizzata_enabled: true,
+    panettone_enabled: true,
+  });
+
+  useEffect(() => {
+    if (data) setLocal(data);
+  }, [data]);
+
+  const mutation = useMutation({
+    mutationFn: (v: typeof local) => runUpdate({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ordering-status-admin"] });
+      toast.success("Impostazioni ordini aggiornate");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore salvataggio"),
+  });
+
+  function toggle(key: keyof typeof local, checked: boolean) {
+    const next = { ...local, [key]: checked };
+    setLocal(next);
+    mutation.mutate(next);
+  }
+
+  return (
+    <div className="mb-6 rounded-xl bg-card p-4 ring-1 ring-border">
+      <h2 className="mb-1 text-sm font-semibold text-primary">Accettazione ordini</h2>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Disattiva una categoria per sospendere temporaneamente le nuove prenotazioni: sul sito
+        comparirà un avviso e l'invio sarà bloccato.
+      </p>
+      <div className="flex flex-wrap gap-x-8 gap-y-3">
+        {ORDERING_TOGGLES.map(({ key, label }) => (
+          <div key={key} className="flex items-center gap-2">
+            <Switch
+              id={`toggle-${key}`}
+              checked={local[key]}
+              onCheckedChange={(v) => toggle(key, v)}
+              disabled={mutation.isPending}
+            />
+            <Label htmlFor={`toggle-${key}`} className="cursor-pointer text-sm">
+              {label}
+            </Label>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     da_preparare: "bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-100",
@@ -171,5 +297,9 @@ function StatusBadge({ status }: { status: string }) {
     ritirato: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
     annullato: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-100",
   };
-  return <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", map[status])}>{STATUS_LABEL[status]}</span>;
+  return (
+    <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", map[status])}>
+      {STATUS_LABEL[status]}
+    </span>
+  );
 }

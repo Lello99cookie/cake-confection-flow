@@ -52,7 +52,14 @@ function SpecialtiesPage() {
                 />
               </div>
               <div className="p-5">
-                <h3 className="font-serif text-xl text-primary">{s.name}</h3>
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-serif text-xl text-primary">{s.name}</h3>
+                  {s.price != null && (
+                    <span className="whitespace-nowrap font-serif text-lg font-semibold text-accent">
+                      € {s.price.toFixed(2).replace(".", ",")}
+                    </span>
+                  )}
+                </div>
                 {s.description && (
                   <p className="mt-2 text-sm text-muted-foreground">{s.description}</p>
                 )}

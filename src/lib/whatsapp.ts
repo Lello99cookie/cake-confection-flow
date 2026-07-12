@@ -8,6 +8,36 @@ export function buildWhatsAppLink(message: string): string {
   return `https://wa.me/${PASTICCERIA_PHONE}?text=${encodeURIComponent(message)}`;
 }
 
+/**
+ * Apre subito una tab vuota, DENTRO al gestore del click (prima di qualunque await).
+ * I browser bloccano i popup aperti dopo un'operazione asincrona perché non li
+ * considerano più legati a un gesto dell'utente: aprendo la tab subito e
+ * reindirizzandola dopo, il popup non viene mai bloccato.
+ */
+export function openWhatsAppPlaceholder(): Window | null {
+  try {
+    return window.open("", "_blank");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Da chiamare dopo l'await (es. dopo il salvataggio della prenotazione).
+ * Se la tab placeholder è disponibile la reindirizza; altrimenti prova ad
+ * aprirne una nuova (potrebbe comunque essere bloccata) e restituisce false
+ * così l'interfaccia può mostrare un link di fallback cliccabile dall'utente.
+ */
+export function deliverWhatsAppMessage(placeholder: Window | null, message: string): boolean {
+  const url = buildWhatsAppLink(message);
+  if (placeholder && !placeholder.closed) {
+    placeholder.location.href = url;
+    return true;
+  }
+  const fallback = window.open(url, "_blank");
+  return !!fallback;
+}
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString("it-IT", {

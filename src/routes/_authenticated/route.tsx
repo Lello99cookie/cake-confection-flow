@@ -28,6 +28,8 @@ function AuthenticatedLayout() {
             <span className="font-serif text-xl text-primary">Cuciniello · Backoffice</span>
           </Link>
           <div className="flex items-center gap-2">
+            <Button asChild variant="ghost" size="sm"><Link to="/dashboard">Prenotazioni</Link></Button>
+            <Button asChild variant="ghost" size="sm"><Link to="/catalogo">Catalogo</Link></Button>
             <Button asChild variant="ghost" size="sm"><Link to="/">Sito pubblico</Link></Button>
             <Button variant="outline" size="sm" onClick={signOut}>
               <LogOut className="mr-1 h-3 w-3" /> Esci

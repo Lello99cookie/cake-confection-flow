@@ -18,6 +18,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedCatalogoRouteImport } from './routes/_authenticated/catalogo'
 import { Route as AuthenticatedPrenotazioniIdRouteImport } from './routes/_authenticated/prenotazioni.$id'
 
 const TortaPersonalizzataRoute = TortaPersonalizzataRouteImport.update({
@@ -64,6 +65,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCatalogoRoute = AuthenticatedCatalogoRouteImport.update({
+  id: '/catalogo',
+  path: '/catalogo',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPrenotazioniIdRoute =
   AuthenticatedPrenotazioniIdRouteImport.update({
     id: '/prenotazioni/$id',
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/prenota': typeof PrenotaRoute
   '/specialita': typeof SpecialitaRoute
   '/torta-personalizzata': typeof TortaPersonalizzataRoute
+  '/catalogo': typeof AuthenticatedCatalogoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/prenotazioni/$id': typeof AuthenticatedPrenotazioniIdRoute
 }
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/prenota': typeof PrenotaRoute
   '/specialita': typeof SpecialitaRoute
   '/torta-personalizzata': typeof TortaPersonalizzataRoute
+  '/catalogo': typeof AuthenticatedCatalogoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/prenotazioni/$id': typeof AuthenticatedPrenotazioniIdRoute
 }
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/prenota': typeof PrenotaRoute
   '/specialita': typeof SpecialitaRoute
   '/torta-personalizzata': typeof TortaPersonalizzataRoute
+  '/_authenticated/catalogo': typeof AuthenticatedCatalogoRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/prenotazioni/$id': typeof AuthenticatedPrenotazioniIdRoute
 }
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/prenota'
     | '/specialita'
     | '/torta-personalizzata'
+    | '/catalogo'
     | '/dashboard'
     | '/prenotazioni/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/prenota'
     | '/specialita'
     | '/torta-personalizzata'
+    | '/catalogo'
     | '/dashboard'
     | '/prenotazioni/$id'
   id:
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/prenota'
     | '/specialita'
     | '/torta-personalizzata'
+    | '/_authenticated/catalogo'
     | '/_authenticated/dashboard'
     | '/_authenticated/prenotazioni/$id'
   fileRoutesById: FileRoutesById
@@ -219,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/catalogo': {
+      id: '/_authenticated/catalogo'
+      path: '/catalogo'
+      fullPath: '/catalogo'
+      preLoaderRoute: typeof AuthenticatedCatalogoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/prenotazioni/$id': {
       id: '/_authenticated/prenotazioni/$id'
       path: '/prenotazioni/$id'
@@ -230,11 +249,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedCatalogoRoute: typeof AuthenticatedCatalogoRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedPrenotazioniIdRoute: typeof AuthenticatedPrenotazioniIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedCatalogoRoute: AuthenticatedCatalogoRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedPrenotazioniIdRoute: AuthenticatedPrenotazioniIdRoute,
 }
@@ -255,3 +276,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
