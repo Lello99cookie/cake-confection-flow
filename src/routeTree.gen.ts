@@ -9,38 +9,202 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TortaPersonalizzataRouteImport } from './routes/torta-personalizzata'
+import { Route as SpecialitaRouteImport } from './routes/specialita'
+import { Route as PrenotaRouteImport } from './routes/prenota'
+import { Route as PanettoniRouteImport } from './routes/panettoni'
+import { Route as GrazieRouteImport } from './routes/grazie'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedPrenotazioniIdRouteImport } from './routes/_authenticated/prenotazioni.$id'
 
+const TortaPersonalizzataRoute = TortaPersonalizzataRouteImport.update({
+  id: '/torta-personalizzata',
+  path: '/torta-personalizzata',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SpecialitaRoute = SpecialitaRouteImport.update({
+  id: '/specialita',
+  path: '/specialita',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrenotaRoute = PrenotaRouteImport.update({
+  id: '/prenota',
+  path: '/prenota',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PanettoniRoute = PanettoniRouteImport.update({
+  id: '/panettoni',
+  path: '/panettoni',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GrazieRoute = GrazieRouteImport.update({
+  id: '/grazie',
+  path: '/grazie',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPrenotazioniIdRoute =
+  AuthenticatedPrenotazioniIdRouteImport.update({
+    id: '/prenotazioni/$id',
+    path: '/prenotazioni/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/grazie': typeof GrazieRoute
+  '/panettoni': typeof PanettoniRoute
+  '/prenota': typeof PrenotaRoute
+  '/specialita': typeof SpecialitaRoute
+  '/torta-personalizzata': typeof TortaPersonalizzataRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/prenotazioni/$id': typeof AuthenticatedPrenotazioniIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/grazie': typeof GrazieRoute
+  '/panettoni': typeof PanettoniRoute
+  '/prenota': typeof PrenotaRoute
+  '/specialita': typeof SpecialitaRoute
+  '/torta-personalizzata': typeof TortaPersonalizzataRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/prenotazioni/$id': typeof AuthenticatedPrenotazioniIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/grazie': typeof GrazieRoute
+  '/panettoni': typeof PanettoniRoute
+  '/prenota': typeof PrenotaRoute
+  '/specialita': typeof SpecialitaRoute
+  '/torta-personalizzata': typeof TortaPersonalizzataRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/prenotazioni/$id': typeof AuthenticatedPrenotazioniIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/grazie'
+    | '/panettoni'
+    | '/prenota'
+    | '/specialita'
+    | '/torta-personalizzata'
+    | '/dashboard'
+    | '/prenotazioni/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/grazie'
+    | '/panettoni'
+    | '/prenota'
+    | '/specialita'
+    | '/torta-personalizzata'
+    | '/dashboard'
+    | '/prenotazioni/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/grazie'
+    | '/panettoni'
+    | '/prenota'
+    | '/specialita'
+    | '/torta-personalizzata'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/prenotazioni/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  GrazieRoute: typeof GrazieRoute
+  PanettoniRoute: typeof PanettoniRoute
+  PrenotaRoute: typeof PrenotaRoute
+  SpecialitaRoute: typeof SpecialitaRoute
+  TortaPersonalizzataRoute: typeof TortaPersonalizzataRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/torta-personalizzata': {
+      id: '/torta-personalizzata'
+      path: '/torta-personalizzata'
+      fullPath: '/torta-personalizzata'
+      preLoaderRoute: typeof TortaPersonalizzataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/specialita': {
+      id: '/specialita'
+      path: '/specialita'
+      fullPath: '/specialita'
+      preLoaderRoute: typeof SpecialitaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/prenota': {
+      id: '/prenota'
+      path: '/prenota'
+      fullPath: '/prenota'
+      preLoaderRoute: typeof PrenotaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/panettoni': {
+      id: '/panettoni'
+      path: '/panettoni'
+      fullPath: '/panettoni'
+      preLoaderRoute: typeof PanettoniRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/grazie': {
+      id: '/grazie'
+      path: '/grazie'
+      fullPath: '/grazie'
+      preLoaderRoute: typeof GrazieRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +212,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/prenotazioni/$id': {
+      id: '/_authenticated/prenotazioni/$id'
+      path: '/prenotazioni/$id'
+      fullPath: '/prenotazioni/$id'
+      preLoaderRoute: typeof AuthenticatedPrenotazioniIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedPrenotazioniIdRoute: typeof AuthenticatedPrenotazioniIdRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedPrenotazioniIdRoute: AuthenticatedPrenotazioniIdRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  GrazieRoute: GrazieRoute,
+  PanettoniRoute: PanettoniRoute,
+  PrenotaRoute: PrenotaRoute,
+  SpecialitaRoute: SpecialitaRoute,
+  TortaPersonalizzataRoute: TortaPersonalizzataRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
