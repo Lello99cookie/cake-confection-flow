@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Search, Clock, Package, Cake, Gift } from "lucide-react";
+import { Search, Clock, Package, Cake, Gift, Bell, BellRing, BellOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { listBookings, updateBookingStatus } from "@/lib/bookings.functions";
+import { listBookings, updateBookingStatus, type Booking } from "@/lib/bookings.functions";
 import { getOrderingStatusAdmin, updateOrderingStatus } from "@/lib/catalog-admin.functions";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +26,8 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   }),
   component: DashboardPage,
 });
+
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 const STATUS_LABEL: Record<string, string> = {
   da_preparare: "Da preparare",
@@ -40,6 +42,14 @@ const TYPE_META: Record<string, { label: string; icon: typeof Cake }> = {
   panettone: { label: "Panettone", icon: Gift },
 };
 
+function startOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+type StatusValue = "da_preparare" | "pronto" | "ritirato" | "annullato";
+
 function DashboardPage() {
   const fetchBookings = useServerFn(listBookings);
   const updateStatus = useServerFn(updateBookingStatus);
@@ -48,6 +58,8 @@ function DashboardPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["bookings"],
     queryFn: () => fetchBookings(),
+    refetchInterval: REFRESH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
   });
 
   const [type, setType] = useState<string>("all");
@@ -55,14 +67,15 @@ function DashboardPage() {
   const [search, setSearch] = useState("");
 
   const mutation = useMutation({
-    mutationFn: (v: { id: string; status: "da_preparare" | "pronto" | "ritirato" | "annullato" }) =>
-      updateStatus({ data: v }),
+    mutationFn: (v: { id: string; status: StatusValue }) => updateStatus({ data: v }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bookings"] });
       toast.success("Stato aggiornato");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
+
+  useNewBookingAlerts(data);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -78,13 +91,60 @@ function DashboardPage() {
     });
   }, [data, type, status, search]);
 
+  const todayStart = startOfDay(new Date());
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+  const stats = useMemo(() => {
+    if (!data) return { today: 0, overdue: 0, ready: 0 };
+    let today = 0;
+    let overdue = 0;
+    let ready = 0;
+    for (const b of data) {
+      const pStart = startOfDay(new Date(b.pickup_at));
+      const active = b.status !== "ritirato" && b.status !== "annullato";
+      if (active && pStart.getTime() < todayStart.getTime()) overdue++;
+      if (b.status === "da_preparare" && pStart.getTime() === todayStart.getTime()) today++;
+      if (b.status === "pronto") ready++;
+    }
+    return { today, overdue, ready };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  const groups = useMemo(() => {
+    const buckets: { key: string; label: string; items: Booking[] }[] = [
+      { key: "overdue", label: "In ritardo", items: [] },
+      { key: "today", label: "Oggi", items: [] },
+      { key: "tomorrow", label: "Domani", items: [] },
+      { key: "later", label: "Prossimi giorni", items: [] },
+    ];
+    for (const b of filtered) {
+      const pStart = startOfDay(new Date(b.pickup_at));
+      if (pStart.getTime() < todayStart.getTime()) buckets[0].items.push(b);
+      else if (pStart.getTime() === todayStart.getTime()) buckets[1].items.push(b);
+      else if (pStart.getTime() === tomorrowStart.getTime()) buckets[2].items.push(b);
+      else buckets[3].items.push(b);
+    }
+    return buckets.filter((g) => g.items.length > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered]);
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-6">
-        <h1 className="font-serif text-3xl text-primary">Prenotazioni</h1>
-        <p className="text-sm text-muted-foreground">
-          Ordinate per data di ritiro — le scadenze più vicine in alto.
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-3xl text-primary">Prenotazioni</h1>
+          <p className="text-sm text-muted-foreground">
+            Raggruppate per giorno di ritiro — le scadenze più vicine in alto.
+          </p>
+        </div>
+        <NotificationToggle />
+      </div>
+
+      <div className="mb-6 grid grid-cols-3 gap-3">
+        <StatTile label="Da preparare oggi" value={stats.today} tone="default" />
+        <StatTile label="In ritardo" value={stats.overdue} tone="destructive" />
+        <StatTile label="Pronte da ritirare" value={stats.ready} tone="accent" />
       </div>
 
       <OrderingStatusCard />
@@ -135,81 +195,28 @@ function DashboardPage() {
         </div>
       )}
 
-      <div className="space-y-3">
-        {filtered.map((b) => {
-          const pickup = new Date(b.pickup_at);
-          const now = Date.now();
-          const hoursToPickup = (pickup.getTime() - now) / 36e5;
-          const meta = TYPE_META[b.type];
-          const Icon = meta.icon;
-          const urgent = hoursToPickup < 24 && hoursToPickup > 0 && b.status === "da_preparare";
-          const overdue = hoursToPickup < 0 && b.status !== "ritirato" && b.status !== "annullato";
-
-          return (
-            <div
-              key={b.id}
+      <div className="space-y-6">
+        {groups.map((group) => (
+          <div key={group.key}>
+            <h2
               className={cn(
-                "rounded-xl bg-card p-4 ring-1 shadow-sm transition-colors",
-                overdue
-                  ? "ring-destructive/40 bg-destructive/5"
-                  : urgent
-                    ? "ring-accent bg-accent/5"
-                    : "ring-border",
+                "mb-2 text-xs font-semibold uppercase tracking-wider",
+                group.key === "overdue" ? "text-destructive" : "text-muted-foreground",
               )}
             >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Icon className="h-4 w-4 text-accent" />
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {meta.label}
-                    </span>
-                    <StatusBadge status={b.status} />
-                    {urgent && (
-                      <Badge variant="outline" className="border-accent text-accent">
-                        Urgente
-                      </Badge>
-                    )}
-                    {overdue && <Badge variant="destructive">In ritardo</Badge>}
-                  </div>
-                  <div className="mt-2 font-serif text-lg text-primary">{b.customer_name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {b.customer_phone} · <Clock className="mr-1 inline h-3 w-3" />
-                    {pickup.toLocaleString("it-IT", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Select
-                    value={b.status}
-                    onValueChange={(v) => mutation.mutate({ id: b.id, status: v as never })}
-                  >
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(STATUS_LABEL).map(([k, v]) => (
-                        <SelectItem key={k} value={k}>
-                          {v}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button asChild variant="outline" size="sm">
-                    <Link to="/prenotazioni/$id" params={{ id: b.id }}>
-                      Dettaglio
-                    </Link>
-                  </Button>
-                </div>
-              </div>
+              {group.label} · {group.items.length}
+            </h2>
+            <div className="space-y-3">
+              {group.items.map((b) => (
+                <BookingRow
+                  key={b.id}
+                  booking={b}
+                  onStatusChange={(v) => mutation.mutate({ id: b.id, status: v })}
+                />
+              ))}
             </div>
-          );
-        })}
+          </div>
+        ))}
         {!isLoading && filtered.length === 0 && (
           <div className="rounded-xl bg-card p-12 text-center text-muted-foreground">
             Nessuna prenotazione con questi filtri.
@@ -217,6 +224,197 @@ function DashboardPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "default" | "destructive" | "accent";
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl bg-card p-4 ring-1 ring-border",
+        tone === "destructive" && value > 0 && "ring-destructive/40 bg-destructive/5",
+        tone === "accent" && value > 0 && "ring-accent/40 bg-accent/5",
+      )}
+    >
+      <div
+        className={cn(
+          "font-serif text-3xl",
+          tone === "destructive" && value > 0 ? "text-destructive" : "text-primary",
+        )}
+      >
+        {value}
+      </div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function BookingRow({
+  booking: b,
+  onStatusChange,
+}: {
+  booking: Booking;
+  onStatusChange: (status: StatusValue) => void;
+}) {
+  const pickup = new Date(b.pickup_at);
+  const now = Date.now();
+  const hoursToPickup = (pickup.getTime() - now) / 36e5;
+  const meta = TYPE_META[b.type];
+  const Icon = meta.icon;
+  const urgent = hoursToPickup < 24 && hoursToPickup > 0 && b.status === "da_preparare";
+  const overdue = hoursToPickup < 0 && b.status !== "ritirato" && b.status !== "annullato";
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl bg-card p-4 ring-1 shadow-sm transition-colors",
+        overdue
+          ? "ring-destructive/40 bg-destructive/5"
+          : urgent
+            ? "ring-accent bg-accent/5"
+            : "ring-border",
+      )}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Icon className="h-4 w-4 text-accent" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {meta.label}
+            </span>
+            <StatusBadge status={b.status} />
+            {urgent && (
+              <Badge variant="outline" className="border-accent text-accent">
+                Urgente
+              </Badge>
+            )}
+            {overdue && <Badge variant="destructive">In ritardo</Badge>}
+          </div>
+          <div className="mt-2 font-serif text-lg text-primary">{b.customer_name}</div>
+          <div className="text-sm text-muted-foreground">
+            {b.customer_phone} · <Clock className="mr-1 inline h-3 w-3" />
+            {pickup.toLocaleString("it-IT", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={b.status} onValueChange={(v) => onStatusChange(v as StatusValue)}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(STATUS_LABEL).map(([k, v]) => (
+                <SelectItem key={k} value={k}>
+                  {v}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/prenotazioni/$id" params={{ id: b.id }}>
+              Dettaglio
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type NotificationSupport = NotificationPermission | "unsupported";
+
+function getNotificationPermission(): NotificationSupport {
+  if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
+  return Notification.permission;
+}
+
+/**
+ * Confronta ogni fetch con l'elenco precedente di id e avvisa (toast sempre,
+ * notifica browser se il permesso è concesso) per le prenotazioni nuove.
+ * Non notifica al primo caricamento, solo per gli arrivi successivi.
+ */
+function useNewBookingAlerts(data: Booking[] | undefined) {
+  const knownIds = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (!data) return;
+    const currentIds = new Set(data.map((b) => b.id));
+    if (knownIds.current === null) {
+      knownIds.current = currentIds;
+      return;
+    }
+    const arrived = data.filter((b) => !knownIds.current!.has(b.id));
+    knownIds.current = currentIds;
+    if (arrived.length === 0) return;
+
+    if (arrived.length === 1) {
+      const b = arrived[0];
+      const label = TYPE_META[b.type]?.label ?? b.type;
+      toast.info(`Nuovo ordine: ${b.customer_name} — ${label}`);
+    } else {
+      toast.info(`${arrived.length} nuovi ordini ricevuti`);
+    }
+
+    if (getNotificationPermission() === "granted") {
+      if (arrived.length === 1) {
+        const b = arrived[0];
+        new Notification("Nuovo ordine", {
+          body: `${b.customer_name} — ${TYPE_META[b.type]?.label ?? b.type}`,
+        });
+      } else {
+        new Notification("Nuovi ordini", { body: `${arrived.length} nuove prenotazioni ricevute` });
+      }
+    }
+  }, [data]);
+}
+
+function NotificationToggle() {
+  const [permission, setPermission] = useState<NotificationSupport>(() =>
+    getNotificationPermission(),
+  );
+
+  if (permission === "unsupported") return null;
+
+  if (permission === "granted") {
+    return (
+      <div className="flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100">
+        <BellRing className="h-3.5 w-3.5" /> Notifiche attive
+      </div>
+    );
+  }
+
+  if (permission === "denied") {
+    return (
+      <div className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs text-muted-foreground">
+        <BellOff className="h-3.5 w-3.5" /> Notifiche bloccate dal browser
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => {
+        Notification.requestPermission().then((p) => setPermission(p));
+      }}
+    >
+      <Bell className="mr-1.5 h-3.5 w-3.5" /> Attiva notifiche nuovi ordini
+    </Button>
   );
 }
 

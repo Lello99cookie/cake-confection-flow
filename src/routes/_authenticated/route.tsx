@@ -6,9 +6,14 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) throw redirect({ to: "/auth" });
-    return { user: data.user };
+    // getSession() trusts the persisted/auto-refreshed local session instead of
+    // round-tripping to the auth server on every navigation — that round-trip
+    // (getUser()) was bouncing people back to /auth on transient network hiccups
+    // even though their session was still valid. Real authorization is still
+    // enforced server-side (RLS + requireSupabaseAuth), this is just the UI gate.
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session) throw redirect({ to: "/auth" });
+    return { user: data.session.user };
   },
   component: AuthenticatedLayout,
 });
@@ -28,9 +33,15 @@ function AuthenticatedLayout() {
             <span className="font-serif text-xl text-primary">Cuciniello · Backoffice</span>
           </Link>
           <div className="flex items-center gap-2">
-            <Button asChild variant="ghost" size="sm"><Link to="/dashboard">Prenotazioni</Link></Button>
-            <Button asChild variant="ghost" size="sm"><Link to="/catalogo">Catalogo</Link></Button>
-            <Button asChild variant="ghost" size="sm"><Link to="/">Sito pubblico</Link></Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/dashboard">Prenotazioni</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/catalogo">Catalogo</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/">Sito pubblico</Link>
+            </Button>
             <Button variant="outline" size="sm" onClick={signOut}>
               <LogOut className="mr-1 h-3 w-3" /> Esci
             </Button>
