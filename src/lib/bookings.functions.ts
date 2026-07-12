@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -41,21 +42,19 @@ export const createBooking = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => createBookingSchema.parse(data))
   .handler(async ({ data }) => {
     const supabase = publicClient();
-    const { data: row, error } = await supabase
-      .from("bookings")
-      .insert({
-        type: data.type,
-        pickup_at: data.pickup_at,
-        customer_name: data.customer_name,
-        customer_phone: data.customer_phone,
-        notes: data.notes ?? null,
-        items: data.items ?? null,
-        cake_config: data.cake_config ?? null,
-      })
-      .select("id")
-      .single();
+    const id = randomUUID();
+    const { error } = await supabase.from("bookings").insert({
+      id,
+      type: data.type,
+      pickup_at: data.pickup_at,
+      customer_name: data.customer_name,
+      customer_phone: data.customer_phone,
+      notes: data.notes ?? null,
+      items: data.items ?? null,
+      cake_config: data.cake_config ?? null,
+    });
     if (error) throw new Error(error.message);
-    return { id: row.id };
+    return { id };
   });
 
 export const listBookings = createServerFn({ method: "GET" })
